@@ -6,12 +6,12 @@ sort_test_() ->
     {
       "TaskSorter.sort – returns list of correctly sorted tasks",
       fun() ->
-        Expected = [
+        Expected = {ok, [
           #{<<"command">> => <<"touch /tmp/file1">>, <<"name">> => <<"task-1">>},
           #{<<"command">> => <<"echo 'Hello World!' > /tmp/file1">>, <<"name">> => <<"task-3">>, <<"requires">> => [<<"task-1">>]},
           #{<<"command">> => <<"cat /tmp/file1">>, <<"name">> => <<"task-2">>, <<"requires">> => [<<"task-3">>]},
           #{<<"command">> => <<"rm /tmp/file1">>, <<"name">> => <<"task-4">>, <<"requires">> => [<<"task-2">>, <<"task-3">>]}
-        ],
+        ]},
         Actual = task_sorter:sort([
           #{<<"command">> => <<"touch /tmp/file1">>, <<"name">> => <<"task-1">>},
           #{<<"command">> => <<"cat /tmp/file1">>, <<"name">> => <<"task-2">>, <<"requires">> => [<<"task-3">>]},
@@ -22,15 +22,16 @@ sort_test_() ->
       end
     },
     {
-      "TaskSorter.sort – circular dependency returns false",
+      "TaskSorter.sort – circular dependency returns error",
       fun() ->
+        Expected = {error, error_message:circular_dependency()},
         Actual = task_sorter:sort([
           #{<<"command">> => <<"touch /tmp/file1">>, <<"name">> => <<"task-1">>},
           #{<<"command">> => <<"cat /tmp/file1">>, <<"name">> => <<"task-2">>, <<"requires">> => [<<"task-4">>]},
           #{<<"command">> => <<"echo 'Hello World!' > /tmp/file1">>, <<"name">> => <<"task-3">>, <<"requires">> => [<<"task-1">>]},
           #{<<"command">> => <<"rm /tmp/file1">>, <<"name">> => <<"task-4">>, <<"requires">> => [<<"task-2">>, <<"task-3">>]}
         ]),
-        ?assertEqual(false, Actual)
+        ?assertMatch(Expected, Actual)
       end
     }
   ].

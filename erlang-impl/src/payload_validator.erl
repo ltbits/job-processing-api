@@ -2,58 +2,97 @@
 -export([validate_input/0, validate_input/1]).
 
 %% @doc Validates the input payload.
--spec validate_input(map()) -> boolean().
-validate_input(#{<<"tasks">> := Tasks} = Input) when is_list(Tasks) ->
-    validate_tasks(Tasks) andalso
-    validate_optional_root_fields(Input) andalso
-    validate_required_tasks(Tasks);
-validate_input(_) -> false.
+-spec validate_input(Input :: map()) -> {ok, map()} | {error, binary()}.
+validate_input(Input) when is_map(Input) ->
+    case maps:get(<<"tasks">>, Input, undefined) of
+        Tasks when is_list(Tasks) ->
+            case maps:get(<<"response_type">>, Input, undefined) of
+                undefined -> 
+                    validate_input_by_tasks(Input, Tasks);
+                ResponseType when is_binary(ResponseType) -> 
+                    validate_input_by_tasks(Input, Tasks);
+                _ -> 
+                    {error, error_message:payload_invalid_response_type()}
+            end;
+        _ -> 
+            {error, error_message:payload_invalid_tasks_arg()}
+    end;
+validate_input(_) -> 
+    {error, error_message:payload_invalid_tasks_arg()}.
 
-%% @doc Validates an empty input (always returns false).
--spec validate_input() -> boolean().
-validate_input() -> false.
+-spec validate_input() -> {error, binary()}.
+validate_input() -> 
+    {error, error_message:payload_empty()}.
 
-%% Private functions
+-spec validate_input_by_tasks(Input :: map(), Tasks :: list()) -> {ok, map()} | {error, binary()}.
+validate_input_by_tasks(Input, Tasks) ->
+    case validate_tasks(Tasks) of
+        {ok, Tasks} ->
+            {ok, Input};
+        Error ->
+            Error
+    end.
 
--spec validate_tasks([map()]) -> boolean().
+%% @doc Checks that command and name are present for each task and they have binary values.
+-spec validate_tasks(Tasks :: list()) -> {ok, list()} | {error, binary()}.
 validate_tasks(Tasks) ->
-    lists:all(fun validate_task/1, Tasks).
+    validate_tasks(Tasks, []).
 
--spec validate_optional_root_fields(map()) -> boolean().
-validate_optional_root_fields(Input) ->
-    lists:all(fun(Field) -> validate_root_field(Input, Field) end, [<<"response_type">>]).
-
--spec validate_root_field(map(), binary()) -> boolean().
-validate_root_field(Input, <<"response_type">>) ->
-    case maps:get(<<"response_type">>, Input, undefined) of
-        Value when is_binary(Value); Value =:= undefined -> true;
-        _ -> false
+-spec validate_tasks(Tasks :: list(), ValidTasks :: list()) -> {ok, list()} | {error, binary()}.
+validate_tasks([], ValidTasks) ->
+    % Tasks = lists:reverse(ValidTasks),
+    case validate_tasks_by_requires_list(ValidTasks) of
+        {ok, Tasks} ->
+            {ok, Tasks};
+        Error ->
+            Error
     end;
-validate_root_field(_, _) -> true.
+validate_tasks([Task | Tasks], ValidTasks) ->
+    case validate_task(Task) of
+        {ok, ValidTask} ->
+            validate_tasks(Tasks, [ValidTask | ValidTasks]);
+        Error ->
+            Error
+    end.
 
--spec validate_task(map()) -> boolean().
-validate_task(#{<<"command">> := Command, <<"name">> := Name} = Task) 
-  when is_binary(Command), is_binary(Name) ->
+-spec validate_task(Task :: map()) -> {ok, map()} | {error, binary()}.
+validate_task(#{<<"command">> := Command, <<"name">> := Name} = Task) when is_binary(Command), is_binary(Name) ->
+    {ok, Task};
+validate_task(_) -> 
+    {error, error_message:payload_invalid_task_command_or_name()}.
+
+
+%% @doc Checks that requires list if present for a task has valid task names specified.
+-spec validate_tasks_by_requires_list(Tasks :: [map()]) -> {ok, [map()]} | {error, binary()}.
+validate_tasks_by_requires_list(Tasks) ->
+    AllTaskNames = sets:from_list([maps:get(<<"name">>, Task) || Task <- Tasks]),
+    validate_tasks_by_requires_list(Tasks, [], AllTaskNames).
+
+-spec validate_tasks_by_requires_list(Tasks :: [map()], ValidTasks :: [map()], AllTaskNames :: sets:set()) -> {ok, [map()]} | {error, binary()}.
+validate_tasks_by_requires_list([], ValidTasks, _AllTaskNames) ->
+    {ok, ValidTasks};
+validate_tasks_by_requires_list([Task | Tasks], ValidTasks, AllTaskNames) ->
+    case validate_task_requires_list(Task, AllTaskNames) of
+        {ok, ValidTask} ->
+            validate_tasks_by_requires_list(Tasks, [ValidTask | ValidTasks], AllTaskNames);
+        Error ->
+            Error
+    end.
+
+-spec validate_task_requires_list(Task :: map(), AllTaskNames :: sets:set()) -> {ok, map()} | {error, binary()}.
+validate_task_requires_list(Task, AllTaskNames) ->
     case maps:get(<<"requires">>, Task, undefined) of
-        undefined -> true;
-        Requires when is_list(Requires) -> true;
-        _ -> false
-    end;
-validate_task(_) -> false.
-
--spec validate_required_tasks([map()]) -> boolean().
-validate_required_tasks(Tasks) ->
-    TaskNames = sets:from_list([maps:get(<<"name">>, Task) || Task <- Tasks]),
-    lists:all(fun(Task) ->
-        Name = maps:get(<<"name">>, Task),
-        Requires = maps:get(<<"requires">>, Task, undefined),
-        validate_task_requires(Requires, Name, TaskNames)
-    end, Tasks).
-
--spec validate_task_requires(undefined | [binary()], binary(), sets:set()) -> boolean().
-validate_task_requires(undefined, _, _) -> true;
-validate_task_requires(Requires, TaskName, AllTaskNames) when is_list(Requires) ->
-    RequiresSet = sets:from_list(Requires),
-    not sets:is_element(TaskName, RequiresSet) andalso
-    sets:is_subset(RequiresSet, AllTaskNames);
-validate_task_requires(_, _, _) -> false.
+        undefined -> 
+            {ok, Task};
+        Requires when is_list(Requires) ->
+            TaskName = maps:get(<<"name">>, Task),
+            RequiresSet = sets:from_list(Requires),
+            case {sets:is_subset(RequiresSet, AllTaskNames), sets:is_element(TaskName, RequiresSet)} of
+                {true, false} ->
+                    {ok, Task};
+                _ ->
+                    {error, error_message:payload_invalid_task_name_in_requires()}
+            end;
+        _ -> 
+            {error, error_message:payload_invalid_task_requires()}
+    end.

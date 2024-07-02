@@ -1,28 +1,27 @@
 -module(task_sorter).
 -export([sort/1]).
 
-%% @doc Sorts tasks based on their dependencies.
-%% Returns a sorted list of tasks or false if sorting is impossible.
--spec sort(list(map())) -> list(map()) | false.
+%% @doc Sorts the given list of tasks based on their dependencies.
+-spec sort(Tasks :: [map()]) -> {ok, [map()]} | {error, binary()}.
 sort(Tasks) ->
     G = digraph:new(),
     try
         add_tasks(Tasks, G),
         case digraph_utils:topsort(G) of
             false ->
-                false;
+                {error, error_message:circular_dependency()};
             SortedNames ->
                 TaskMap = create_task_map(Tasks),
-                [maps:get(Name, TaskMap) || Name <- SortedNames]
+                {ok, [maps:get(Name, TaskMap) || Name <- SortedNames]}
         end
     catch
         throw:cycle -> 
-            false
+            {error, error_message:circular_dependency()}
     after
         digraph:delete(G)
     end.
 
--spec add_tasks(list(map()), digraph:graph()) -> ok.
+-spec add_tasks(Tasks :: [map()], G :: digraph:graph()) -> ok.
 add_tasks([], _G) ->
     ok;
 add_tasks([Task | Rest], G) ->
@@ -32,7 +31,7 @@ add_tasks([Task | Rest], G) ->
     add_edges(Name, Deps, G),
     add_tasks(Rest, G).
 
--spec add_edges(binary(), list(binary()), digraph:graph()) -> ok.
+-spec add_edges(Name :: binary(), Deps :: [binary()], G :: digraph:graph()) -> ok.
 add_edges(_, [], _G) ->
     ok;
 add_edges(Name, [Dep | Rest], G) ->
@@ -42,6 +41,6 @@ add_edges(Name, [Dep | Rest], G) ->
         _ -> add_edges(Name, Rest, G)
     end.
 
--spec create_task_map(list(map())) -> map().
+-spec create_task_map(Tasks :: [map()]) -> #{binary() => map()}.
 create_task_map(Tasks) ->
     maps:from_list([{maps:get(<<"name">>, Task), Task} || Task <- Tasks]).

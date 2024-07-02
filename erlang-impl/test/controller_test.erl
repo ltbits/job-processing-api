@@ -13,19 +13,17 @@ sort_test_() ->
     {
       "controller:process_tasks – empty input returns error",
       fun() ->
-        ?assertEqual(
-          controller:generic_error_response(), 
-          controller:process_tasks(#{})
-        )
+        Expected = {400, #{error => error_message:payload_invalid_tasks_arg()}},
+        Actual   = controller:process_tasks(#{}),
+        ?assertMatch(Expected, Actual)
       end
     },
     {
       "controller:process_tasks – wrong input returns error",
       fun() ->
-        ?assertEqual(
-          controller:generic_error_response(), 
-          controller:process_tasks(#{ <<"any">> => 1, <<"other">> => [] })
-        )
+        Expected = {400, #{error => error_message:payload_invalid_tasks_arg()}},
+        Actual   = controller:process_tasks(#{ <<"any">> => 1, <<"other">> => [] }),
+        ?assertMatch(Expected, Actual)
       end
     },
     {

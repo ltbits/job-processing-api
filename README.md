@@ -41,7 +41,7 @@ cat /tmp/file1
 rm /tmp/file1
 ```
 
-### Notes
+### Notes on Elixir version
 - Circular dependencies, non-existing or self-referencing task names inside `requires`, and many other malformations in the payload return a generic error message.
 
 
@@ -59,7 +59,6 @@ Test
 rebar3 eunit
 
 ```
-
 
 
 ### Elixir
