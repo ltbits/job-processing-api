@@ -41,36 +41,45 @@ cat /tmp/file1
 rm /tmp/file1
 ```
 
-### Notes on Elixir version
-- Circular dependencies, non-existing or self-referencing task names inside `requires`, and many other malformations in the payload return a generic error message.
-
-
-### Erlang
-Install
+### Erlang implementation
+#### Notes
+The endpoint either returns correctly sorted tasks or one of the following errors:
+```json
+{"error": "invalid-payload"}
+{"error": "no-tasks-given"}
+{"error": "invalid-tasks-list"}
+{"error": "invalid-response-type"}
+{"error": "invalid-optional-root-fields"}
+{"error": "invalid-task-command-or-name"}
+{"error": "invalid-task-requires"}
+{"error": "invalid-task-name-in-requires"}
+{"error": "circular-dependency"}
+```
+#### Install
 ```erl
 rebar3 compile
 ```
-Run
+#### Run
 ```erl
 rebar3 as dev shell
 ```
-Test
+#### Test
 ```erl
 rebar3 eunit
-
 ```
 
-
-### Elixir
-Install
+### Elixir implementation
+#### Notes
+Circular dependencies, non-existing or self-referencing task names inside `requires`, and many other malformations in the payload return a generic error message.
+#### Install
 ```elixir
 mix deps.get
 ```
-Run
+#### Run
 ```elixir
 mix run --no-halt
 ```
-Test
+#### Test
 ```elixir
 mix test
 ```
