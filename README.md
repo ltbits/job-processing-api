@@ -1,4 +1,4 @@
-### A (non-production-ready) job processing API for Elang and Elixir.
+### A (non-production-ready) job processing API for Erlang and Elixir.
 - Erlang version is built using cowboy and digraph.
 - Elixir version is built using plug/cowboy, jason and libgraph.
 
